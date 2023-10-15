@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+      "outDir": "build",
+      "target": "es5",
+      "module": "ESNext",
+      "declaration": true,
+      "jsx": "react-jsx",
+      "moduleResolution": "node", // 以node 的方式寻找依赖；默认typescript 会沿着相对路径向上寻找
+      "resolveJsonModule": true,
+      "allowSyntheticDefaultImports": true, // 将 import React from 'react' 自动转化为 import * as React from 'react'
+      // "isolatedModules": true,
+      "noEmit": true,
+    },
+    "include": [
+        "src"
+    ],
+    "exclude": [
+        "src/**/*.stories.tsx",
+        "src/**/*.test.tsx",
+    ]
+}
