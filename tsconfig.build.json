@@ -9,13 +9,12 @@
       "resolveJsonModule": true,
       "allowSyntheticDefaultImports": true, // 将 import React from 'react' 自动转化为 import * as React from 'react'
       // "isolatedModules": true,
-      "noEmit": true,
     },
     "include": [
         "src"
     ],
     "exclude": [
-        "src/**/*.stories.tsx",
-        "src/**/*.test.tsx",
+        "src/stories/*",
+        "src/**/*.test.ts",
     ]
 }
