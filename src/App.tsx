@@ -2,6 +2,8 @@ import React from 'react';
 import { BtnSize, Button, ButtonType } from './component/Button';
 // import './App.css';
 import { SubMenu, Menu, MenuItem } from './component/Menu';
+import FormItem from './component/Form/FormItem';
+import { Form } from './component/Form';
 function App() {
   var data = [
     {
@@ -49,7 +51,7 @@ function App() {
       {/* <Menu>
         { MenuData(data)}
       </Menu> */}
-      <Menu mode='horizontal'>
+      {/* <Menu mode='horizontal'>
         <MenuItem index={0} disabled={false} >111</MenuItem>
         <MenuItem index={1} >22</MenuItem>
         <MenuItem index={2} >32</MenuItem>
@@ -61,12 +63,17 @@ function App() {
             </SubMenu>
           </SubMenu>
         </SubMenu>
-      </Menu>
+      </Menu> */}
       {/* <Button onClick={() => alert(11)}>Default</Button>
       <Button disabled>Default disabled</Button>
       <Button btnType={ ButtonType.Success} size={ BtnSize.Large}>Test</Button>
       <Button btnType={ ButtonType.Primary} size={ BtnSize.Large}>Test</Button>
       <Button btnType={ButtonType.Link} href='http://www.baidu.com' target='_blank' size={BtnSize.Small}>link</Button> */}
+      <Form>
+        <FormItem label="用户名">
+          <input />
+        </FormItem>
+      </Form>
     </div>
   ); 
 }
