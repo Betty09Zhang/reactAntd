@@ -4,6 +4,8 @@ import { BtnSize, Button, ButtonType } from './component/Button';
 import { SubMenu, Menu, MenuItem } from './component/Menu';
 import FormItem from './component/Form/FormItem';
 import { Form } from './component/Form';
+import type { RuleItem } from 'async-validator';
+import { CustomRule } from './component/Form/useStore';
 function App() {
   var data = [
     {
@@ -45,6 +47,28 @@ function App() {
         }   
      })
     }
+
+    const initValue = {username:  'cC' }
+    const rules :RuleItem[] = [
+     {
+        type: 'string',
+        required: true,
+        message: 'Name is required' 
+      }
+    ]
+
+    // 接受一个对象中包含key 为 getValueField的值 函数，传递进来
+    const customRules : CustomRule[] = [
+      ({getValueField}) => ({
+        asyncValidator(rule, value){
+            const name = getValueField('username')
+            if (value === name) {
+              return Promise.reject('同名。。')
+            }
+            return Promise.resolve()
+        } 
+      })
+    ]
   return (
    
     <div className="App">
@@ -69,9 +93,12 @@ function App() {
       <Button btnType={ ButtonType.Success} size={ BtnSize.Large}>Test</Button>
       <Button btnType={ ButtonType.Primary} size={ BtnSize.Large}>Test</Button>
       <Button btnType={ButtonType.Link} href='http://www.baidu.com' target='_blank' size={BtnSize.Small}>link</Button> */}
-      <Form>
-        <FormItem label="用户名">
+      <Form initialValue= { initValue }>
+        <FormItem label="用户名" name="username" rules={ rules }>
           <input />
+        </FormItem>
+        <FormItem label="密码" name="password" rules={ customRules }>
+          <input type="password"/>
         </FormItem>
       </Form>
     </div>
