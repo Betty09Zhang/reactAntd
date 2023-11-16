@@ -4,10 +4,15 @@ import Schema, { RuleItem, ValidateError } from 'async-validator';
 export interface FieldDetail {
     name: string;
     value: string;
-    rules: RuleItem[];
+    rules: CustomRule[];
     isValid: boolean;
     errors: any[];
 }
+
+
+type CustomValidateRule = ( argumentRule: Record<string, any> ) => RuleItem;
+
+export type CustomRule = CustomValidateRule | RuleItem;
 
 // Field store 结构
 // store = {
@@ -38,13 +43,23 @@ function fieldsReducer(state: FieldsState, action: FormAction) {
                     ...action.value
                 }
             }
+        case 'updateField':
+            return {
+                ...state,
+                [action.name]: {
+                    ...state[action.name],
+                    value: action.value
+                }
+            }
         case 'updateValidateFields':
+            console.log('updateValidateFields', state[action.name])
             return {
                 ...state,
                 [action.name]: {
                     ...state[action.name],
                     isValid: action.value.isValid,
-                    errors: action.value.errors
+                    errors: action.value.errors,
+                    value: action.value.value
                 }
             }
         default: return state
@@ -67,9 +82,22 @@ function useStore() {
     // });
     let isValid = true
     let errors: ValidateError[] = []
+    const getValueField = (name: string) => {
+        return fields[name].value
+    }
+    const transfromRules = (rules: CustomRule[]) => {
+        return rules.map(rule => {
+            if(typeof rule === 'function') {
+                return rule({getValueField})
+            }
+            return rule
+        })
+    }
     const validateFields = async (name: string) => {
+        debugger
         const {value, rules} = fields[name]
-        const validator = new Schema({[name]: rules})
+        const descriptorRules = transfromRules(rules)
+        const validator = new Schema({[name]: descriptorRules[0]})
         try {
             await validator.validate({[name]: value}) 
         } catch (e) {

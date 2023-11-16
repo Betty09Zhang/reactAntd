@@ -1,7 +1,7 @@
 import React, { ReactNode, FC, useContext, useEffect } from "react";
 import classNames from "classnames";
-import useStore from "./useStore";
-import { FormContext } from ".";
+import  { CustomRule } from "./useStore";
+import { FormContext } from "./index";
 import { RuleItem } from "async-validator";
 interface FormItemProps {
     name: string;
@@ -10,15 +10,19 @@ interface FormItemProps {
     valuePropName?: string; // 子元素取值
     trigger?: string; // 子元素触发的方法
     getValueFromEvent?: (...args: any[]) => any; // 触发事件取值
-    validateTrigger: string;
-    rules: RuleItem[];
+    validateTrigger?: string;
+    rules?: CustomRule[];
 }
+
+// 自定义异步校验。可以传入一个方法在方法中拿到其他field 值，进行自定义校验
+
+
 
 type SomeRequired<T, K extends keyof T> = Required<Pick<T, K>> & Omit<T, K>
 
 const FormItem :FC<FormItemProps> = (props) => {
     // 必填优化
-    const { label, children, name, valuePropName, trigger, getValueFromEvent, validateTrigger, rules } = props as SomeRequired<FormItemProps, 'getValueFromEvent' | 'trigger' | 'valuePropName' | 'validateTrigger'>
+    const { label, children, name, valuePropName, trigger, getValueFromEvent, validateTrigger, rules } = props as SomeRequired<FormItemProps, |'rules'| 'getValueFromEvent' | 'trigger' | 'valuePropName' | 'validateTrigger'>
     const formItemRow = classNames('formItem-row', {
         'not_label': !label
     })
@@ -29,7 +33,7 @@ const FormItem :FC<FormItemProps> = (props) => {
         dispatch({
             type: 'addField',
             name,
-            value: { label, name, value: initValue, isValid: true },
+            value: { label, name, value: initValue, isValid: true, rules },
         })
     }, [])
 
@@ -39,15 +43,15 @@ const FormItem :FC<FormItemProps> = (props) => {
     
     // 手动创建一个children属性列表
     const controlProps: Record<string, any> = {
-        [valuePropName!]: fieldState.value,
+        [valuePropName!]: fieldState?.value || '',
     }
-    controlProps[trigger!] = (e: any) => {
+    controlProps['onChange'] = (e: any) => {
         // 这里typescript 需要判空处理该方法； 可以优化FormItemProps 接口，设置必选
         const value = getValueFromEvent(e)
         dispatch({
             type: 'updateField',
             name,
-            value
+            value,
         })
     }
 
@@ -66,8 +70,7 @@ const FormItem :FC<FormItemProps> = (props) => {
         ...controlProps
     })
 
-    const value = fieldState.value
-    const hasError = fieldState.errors && fieldState.errors.length > 0
+    const hasError = fieldState?.errors && fieldState.errors.length > 0
 
 
     return (
