@@ -4,7 +4,7 @@ import { BtnSize, Button, ButtonType } from './component/Button';
 import { SubMenu, Menu, MenuItem } from './component/Menu';
 import FormItem from './component/Form/FormItem';
 import { Form } from './component/Form';
-import type { RuleItem } from 'async-validator';
+import type { RuleItem, ValidateError } from 'async-validator';
 import { CustomRule } from './component/Form/useStore';
 function App() {
   var data = [
@@ -69,6 +69,11 @@ function App() {
         } 
       })
     ]
+
+    const finishForm = (error: ValidateError) => {
+      console.log('error', error);
+      
+    }
   return (
    
     <div className="App">
@@ -93,14 +98,17 @@ function App() {
       <Button btnType={ ButtonType.Success} size={ BtnSize.Large}>Test</Button>
       <Button btnType={ ButtonType.Primary} size={ BtnSize.Large}>Test</Button>
       <Button btnType={ButtonType.Link} href='http://www.baidu.com' target='_blank' size={BtnSize.Small}>link</Button> */}
-      <Form initialValue= { initValue }>
-        <FormItem label="用户名" name="username" rules={ rules }>
-          <input />
-        </FormItem>
-        <FormItem label="密码" name="password" rules={ customRules }>
-          <input type="password"/>
-        </FormItem>
-      </Form>
+      <Form initialValue= { initValue } onFinishFailed={ finishForm }>
+        {({isValid}) => (
+          <><FormItem label="用户名" name="username" rules={rules}>
+            <input />
+          </FormItem><FormItem label="密码" name="password" rules={customRules}>
+              <input type="password" />
+            </FormItem><Button>{isValid ? 'ok': 'false'}</Button></>
+
+        )}
+        </Form>
+        
     </div>
   ); 
 }

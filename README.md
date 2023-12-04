@@ -1,3 +1,5 @@
+
+
 # 构建前端组件库
 
 ## react hook
@@ -251,4 +253,525 @@ node-sass src/style.scss dest/style.css
     "webpack": "^5.89.0"
   }
 }
+```
+
+Form 表单组件构思：
+
+1. 组件结构
+
+伪代码：
+
+```tsx
+<Form>
+	<Item>
+    	<Input/>
+    </Item>
+</Form>
+```
+
+2. 组件内维护的数据结构
+
+```tsx
+// Field store 结构
+store = {
+    username: { name: '', value: '', rules: [], isValid: false, errors: []}
+}
+```
+
+每个表单Item 维护一个唯一的prop
+
+3. 数据传递
+
+react 为单向数据流，我们在顶级Form 中通过注入Context ,在各代子组件中中可以拿到响应式数据。同时Context 中传递的变量, 通过state 维护。在Input 、Radio、Select 等受控组件中，我们可以通过Context注入设置初始值，与此同时我们触发受控组件的change 事件 或其他事件时，我们更新注入的变量值以此来达到数据的动态更新。（此处为触发一个方法，可利用useReducer 来实现）
+
+4. 表单校验
+
+使用 async-validator 三方件，验证数据。
+
+ 5. 实现
+
+    逻辑的处理写在 hooks 中。其中包含一些typescript 技巧的使用。
+
+    5.1 在useStore.ts 中 考虑提供验证、异步分发
+
+​		FieldDetail 结构
+
+```tsx
+export interface FieldDetail {
+    name: string;
+    value: string;
+    rules: CustomRule[];
+    isValid: boolean;
+    errors: any[];
+}
+```
+
+通过 useReducer 分发事件
+
+```tsx
+function fieldsReducer(state: FieldsState, action: FormAction) {
+    switch (action.type) {
+        case 'addField': 
+            return {
+                ...state,
+                [action.name]: {
+                    ...action.value
+                }
+            }
+        case 'updateField':
+            return {
+                ...state,
+                [action.name]: {
+                    ...state[action.name],
+                    value: action.value
+                }
+            }
+        case 'updateValidateFields':
+            console.log('updateValidateFields', state[action.name])
+            return {
+                ...state,
+                [action.name]: {
+                    ...state[action.name],
+                    isValid: action.value.isValid,
+                    errors: action.value.errors,
+                    value: action.value.value
+                }
+            }
+        default: return state
+
+    }
+}
+
+function useStore() {
+    // 更新表单form 信息
+    const [form, setForm] = useState<FormState>({ isValid: false})
+    // 更新各个fields 信息
+    const [fields, dispatch ] = useReducer(fieldsReducer, {})
+    let isValid = true
+    let errors: ValidateError[] = []
+    const getValueField = (name: string) => {
+        return fields[name].value
+    }
+    const transfromRules = (rules: CustomRule[]) => {
+        return rules.map(rule => {
+            if(typeof rule === 'function') {
+                return rule({getValueField})
+            }
+            return rule
+        })
+    }
+    const validateFields = async (name: string) => {
+        const {value, rules} = fields[name]
+        const descriptorRules = transfromRules(rules)
+        const validator = new Schema({[name]: descriptorRules[0]})
+        try {
+            await validator.validate({[name]: value}) 
+        } catch (e) {
+            const err = e as any
+            isValid = false
+            errors = err.errors
+        } finally {
+            dispatch({
+                type: 'updateValidateFields',
+                name,
+                value: {
+                    value,
+                    isValid,
+                    errors
+                }
+            })
+        }  
+    }
+
+    interface ValidateFieldError {
+        fields: Record<string, ValidateError[]>;
+        errors: ValidateError[];
+    }
+
+    const validateAllFields = async () => {
+        // var users = {
+        //     'fred':    { 'user': 'fred',    'age': 40 },
+        //     'pebbles': { 'user': 'pebbles', 'age': 1 }
+        //   };
+           
+        //   _.mapValues(users, function(o) { return o.age; });
+          // => { 'fred': 40, 'pebbles': 1 } (iteration order is not guaranteed)
+        // 处理fields 对象， 返回新的对象 {username: '123', password: 'wwww'}
+        const newFields = mapValues(fields, (o) => {
+            return o.value
+        })
+        const descriptor = mapValues(fields, (o) => transfromRules(o.rules))
+        let errors: Record<string, ValidateError[]> = {}
+        let isValid = true
+        try {
+            await new Schema(descriptor).validate(newFields)  
+        } catch (e) {
+            const err = e as ValidateFieldError
+            isValid = false
+            errors = err.fields 
+        } finally {
+            // 迭代数组或是对象
+            each(fields, (value, key) => {
+                const err = errors[key]
+                if (err) {
+                    dispatch({
+                        type: 'updateValidateFields',
+                        name: key,
+                        value: {
+                            isValid: false,
+                            errors: err,
+                            value: value.value,
+                        }
+                    })
+                } else if (value.rules.length){
+                    dispatch({
+                        type: 'updateValidateFields',
+                        name: key,
+                        value: {
+                            isValid: true,
+                            value: value.value,
+                            errors: []
+                        }
+                    })
+                }
+               
+            })
+
+            setForm({ isValid })
+            return {
+                isValid,
+                errors,
+                fields: newFields
+            }
+            
+           
+        } 
+        
+
+
+    }
+    return {
+        fields,
+        dispatch,
+        form,
+        validateFields,
+        validateAllFields,
+    }
+}
+```
+
+在 typescript 中，我们有时 给了defaultProp 中某些变量的默认值，但是还是会有undefined 提示，这时我们可以巧妙处理数据类型。
+
+```tsx
+interface FormItemProps {
+    name: string;
+    label?: string;
+    children?: ReactNode
+    valuePropName?: string; // 子元素取值
+    trigger?: string; // 子元素触发的方法
+    getValueFromEvent?: (...args: any[]) => any; // 触发事件取值
+    validateTrigger?: string;
+    rules?: CustomRule[];
+}
+
+FormItem.defaultProps = {
+    valuePropName: 'value',
+    getValueFromEvent: (e: any) => e.target.value,
+    trigger:'onChange',
+    validateTrigger: 'onBlur',
+}
+
+```
+
+'getValueFromEvent' | 'trigger' | 'valuePropName' | 'validateTrigger'
+
+```tsx
+type SomeRequired<T, K keysof T> = Required<Pick<T,  K>> & Omit<T, k>
+```
+
+在类型断言中使用 SomeRequired
+
+```tsx
+const { label, children, name, valuePropName, trigger, getValueFromEvent, validateTrigger, rules } = props as SomeRequired<FormItemProps, 'getValueFromEvent' | 'trigger' | 'valuePropName' | 'validateTrigger'>
+```
+
+5.2 通过cloneElement 方法给（子组件）受控组件添加事件以及属性
+
+```tsx
+ // 得到对应 formItem name 对应的 fields值
+    const fieldState = fields[name]
+
+    
+    // 手动创建一个children属性列表
+    const controlProps: Record<string, any> = {
+        [valuePropName!]: fieldState?.value || '',
+    }
+    controlProps['onChange'] = (e: any) => {
+        // 这里typescript 需要判空处理该方法； 可以优化FormItemProps 接口，设置必选
+        const value = getValueFromEvent(e)
+        dispatch({
+            type: 'updateField',
+            name,
+            value,
+        })
+    }
+
+    if (rules) {
+        controlProps[validateTrigger] = async () => {
+            await validateFields(name)
+        }
+    }
+
+   
+    // 通过cloneElement 克隆 增加其他的属性到子元素
+    const childList = React.Children.toArray(children)
+    const child = childList[0] as React.ReactElement
+    const formItemChildren = React.cloneElement(child,  {
+        ...child.props,
+        ...controlProps
+    })
+```
+
+5.3 通过传递function(renderProp) 式渲染子组件。
+
+eg:
+
+```list.tsx
+import { useState } from 'react';
+import { HighlightContext } from './HighlightContext.js';
+
+export default function List({ items, renderItem }) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  return (
+    <div className="List">
+      {items.map((item, index) => {
+        const isHighlighted = index === selectedIndex;
+        return (
+          <HighlightContext.Provider
+            key={item.id}
+            value={isHighlighted}
+          >
+            {renderItem(item)}
+          </HighlightContext.Provider>
+        );
+      })}
+      <hr />
+      <button onClick={() => {
+        setSelectedIndex(i =>
+          (i + 1) % items.length
+        );
+      }}>
+        Next
+      </button>
+    </div>
+  );
+}
+
+```
+
+
+
+```tsx
+<List
+  items={products}
+  renderItem={product =>
+    <Row title={product.title} />
+  }
+/>
+```
+
+在 form.tsx 组件内部，可以接受children 为一个 function。在Form封装组件的内部，可以将form 变量传递到子组件中。
+
+```App.tsx
+  <Form initialValue= { initValue } onFinishFailed={ finishForm }>
+        {({isValid}) => (
+          <><FormItem label="用户名" name="username" rules={rules}>
+            <input />
+          </FormItem><FormItem label="密码" name="password" rules={customRules}>
+              <input type="password" />
+            </FormItem><Button>{isValid ? 'ok': 'false'}</Button></>
+
+        )}
+        </Form>
+```
+
+```tsx
+export const Form : FC<FormProps> = (props) => {
+    const {children, onFinish, onFinishFailed } = props
+    const { form, dispatch, fields, validateFields, validateAllFields } = useStore()
+    console.log('fields: ', fields);
+    
+    const initContext: IFormContext = { dispatch, fields, initialValue: props.initialValue, rules: props.rules, validateFields}
+    const submitForm = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.stopPropagation()
+        e.preventDefault()
+        const { isValid,errors,fields} = await validateAllFields()
+        if(isValid){
+            onFinish && onFinish(fields)
+        } else {
+            onFinishFailed && onFinishFailed(errors)
+        }
+    }
+
+    // 利用 renderProp 对子节点等进行函数式渲染。
+    let childrenNodes: React.ReactNode
+   
+    if(typeof children === 'function') {
+        // 内部funcChildren 传递一个 form 对象，在使用组件时，children 可以接收该参数
+        childrenNodes = children(form)
+    } else {
+        childrenNodes = children
+    } 
+    
+    return (
+        <form onSubmit={submitForm}>
+            <FormContext.Provider value={initContext}>
+                {childrenNodes}
+            </FormContext.Provider>
+            
+        </form>
+    )
+}
+Form.defaultProps = {
+    mode: 'vertical'
+}
+```
+
+
+
+5.4 [async-validator](https://github.com/yiminghe/async-validator) 异步验证器的改造使用。
+
+异步验证器的使用
+
+```tsx
+import Schema from 'async-validator';
+const descriptor = {
+  name: {
+    type: 'string',
+    required: true,
+    validator: (rule, value) => value === 'muji',
+  },
+  age: {
+    type: 'number',
+    asyncValidator: (rule, value) => {
+      return new Promise((resolve, reject) => {
+        if (value < 18) {
+          reject('too young');  // reject with error message
+        } else {
+          resolve();
+        }
+      });
+    },
+  },
+};
+const validator = new Schema(descriptor);
+validator.validate({ name: 'muji' }, (errors, fields) => {
+  if (errors) {
+    // validation failed, errors is an array of all errors
+    // fields is an object keyed by field name with an array of
+    // errors per field
+    return handleErrors(errors, fields);
+  }
+  // validation passed
+});
+
+// PROMISE USAGE
+validator.validate({ name: 'muji', age: 16 }).then(() => {
+  // validation passed or without error message
+}).catch(({ errors, fields }) => {
+  return handleErrors(errors, fields);
+});
+```
+
+在使用Form表单时，我们可能再 asyncValidator 方法中，使用到其他变量的值，可是自动接收的传参只有rules 和当前表单的value 值，简单的封装思路如下：我们可以考虑rules 中传递一个函数，该函数接收一个对象传参，其中有一个方法名为“xxx”, 这里为 getValueField, 我们在 Form 表单校验调用validateAllFields方法中处理，在该方法中，其实也是走的async-validator 三方件内部的校验方法，只是在外层包了一层函数，并将getValueFields 方法作为传参传递进去即可，形成闭包。
+
+```tsx
+    const transfromRules = (rules: CustomRule[]) => {
+        return rules.map(rule => {
+            if(typeof rule === 'function') {
+                return rule({getValueField})
+            }
+            return rule
+        })
+    }
+    
+    const validateAllFields = async () => {
+    const newFields = mapValues(fields, (o) => {
+        return o.value
+    })
+    const descriptor = mapValues(fields, (o) => transfromRules(o.rules))
+    let errors: Record<string, ValidateError[]> = {}
+    let isValid = true
+    try {
+        await new Schema(descriptor).validate(newFields)  
+    } catch (e) {
+        const err = e as ValidateFieldError
+        isValid = false
+        errors = err.fields 
+    } finally {
+        // 迭代数组或是对象
+        each(fields, (value, key) => {
+            const err = errors[key]
+            if (err) {
+                dispatch({
+                    type: 'updateValidateFields',
+                    name: key,
+                    value: {
+                        isValid: false,
+                        errors: err,
+                        value: value.value,
+                    }
+                })
+            } else if (value.rules.length){
+                dispatch({
+                    type: 'updateValidateFields',
+                    name: key,
+                    value: {
+                        isValid: true,
+                        value: value.value,
+                        errors: []
+                    }
+                })
+            }
+
+        })
+
+        setForm({ isValid })
+        return {
+            isValid,
+            errors,
+            fields: newFields
+        }   
+    } 
+    }
+```
+
+
+
+实际中使用：
+
+```App.tsx
+    // 接受一个对象中包含key 为 getValueField的值 函数，传递进来
+    const customRules : CustomRule[] = [
+      ({getValueField}) => ({
+        asyncValidator(rule, value){
+            const name = getValueField('username')
+            if (value === name) {
+              return Promise.reject('同名。。')
+            }
+            return Promise.resolve()
+        } 
+      })
+    ]
+    
+     <Form initialValue= { initValue } onFinishFailed={ finishForm }>
+        {({isValid}) => (
+          <><FormItem label="用户名" name="username" rules={rules}>
+            <input />
+          </FormItem><FormItem label="密码" name="password" rules={customRules}>
+              <input type="password" />
+            </FormItem><Button>{isValid ? 'ok': 'false'}</Button></>
+
+        )}
+       </Form>
 ```

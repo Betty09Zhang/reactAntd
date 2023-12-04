@@ -1,6 +1,6 @@
 import { useReducer, useState } from "react";
 import Schema, { RuleItem, ValidateError } from 'async-validator';
-
+import { mapValues, each } from "lodash-es";
 export interface FieldDetail {
     name: string;
     value: string;
@@ -72,14 +72,6 @@ function useStore() {
     const [form, setForm] = useState<FormState>({ isValid: false})
     // 更新各个fields 信息
     const [fields, dispatch ] = useReducer(fieldsReducer, {})
-
-    // const validator = new Schema(descriptor);
-    // validator.validate({ name: 'muji' }, (errors, fields) => {
-    //     if (errors) {
-    //         return handleErrors(errors, fields);
-    //     }
-    // // validation passed
-    // });
     let isValid = true
     let errors: ValidateError[] = []
     const getValueField = (name: string) => {
@@ -94,7 +86,6 @@ function useStore() {
         })
     }
     const validateFields = async (name: string) => {
-        debugger
         const {value, rules} = fields[name]
         const descriptorRules = transfromRules(rules)
         const validator = new Schema({[name]: descriptorRules[0]})
@@ -109,18 +100,76 @@ function useStore() {
                 type: 'updateValidateFields',
                 name,
                 value: {
+                    value,
                     isValid,
                     errors
                 }
             })
-        }
-        
+        }  
+    }
+
+    interface ValidateFieldError {
+        fields: Record<string, ValidateError[]>;
+        errors: ValidateError[];
+    }
+
+    const validateAllFields = async () => {
+        const newFields = mapValues(fields, (o) => {
+            return o.value
+        })
+        const descriptor = mapValues(fields, (o) => transfromRules(o.rules))
+        let errors: Record<string, ValidateError[]> = {}
+        let isValid = true
+        try {
+            await new Schema(descriptor).validate(newFields)  
+        } catch (e) {
+            const err = e as ValidateFieldError
+            isValid = false
+            errors = err.fields 
+        } finally {
+            // 迭代数组或是对象
+            each(fields, (value, key) => {
+                const err = errors[key]
+                if (err) {
+                    dispatch({
+                        type: 'updateValidateFields',
+                        name: key,
+                        value: {
+                            isValid: false,
+                            errors: err,
+                            value: value.value,
+                        }
+                    })
+                } else if (value.rules.length){
+                    dispatch({
+                        type: 'updateValidateFields',
+                        name: key,
+                        value: {
+                            isValid: true,
+                            value: value.value,
+                            errors: []
+                        }
+                    })
+                }
+               
+            })
+
+            setForm({ isValid })
+            return {
+                isValid,
+                errors,
+                fields: newFields
+            }
+            
+           
+        } 
     }
     return {
         fields,
         dispatch,
         form,
-        validateFields
+        validateFields,
+        validateAllFields,
     }
 }
 export default useStore;

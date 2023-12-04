@@ -22,7 +22,7 @@ type SomeRequired<T, K extends keyof T> = Required<Pick<T, K>> & Omit<T, K>
 
 const FormItem :FC<FormItemProps> = (props) => {
     // 必填优化
-    const { label, children, name, valuePropName, trigger, getValueFromEvent, validateTrigger, rules } = props as SomeRequired<FormItemProps, |'rules'| 'getValueFromEvent' | 'trigger' | 'valuePropName' | 'validateTrigger'>
+    const { label, children, name, valuePropName, trigger, getValueFromEvent, validateTrigger, rules } = props as SomeRequired<FormItemProps, 'rules'| 'getValueFromEvent' | 'trigger' | 'valuePropName' | 'validateTrigger'>
     const formItemRow = classNames('formItem-row', {
         'not_label': !label
     })
